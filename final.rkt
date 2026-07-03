@@ -2,8 +2,9 @@
 
 (provide (all-defined-out))
 
-
-; especificador lexico
+; ==============================================================================
+; ESPECIFICACIÓN LÉXICA
+; ==============================================================================
 (define lexical-spec
   '((white-sp (whitespace) skip)
     (comment ("#" (arbno (not #\newline))) skip)
@@ -14,25 +15,27 @@
     (numero ("-" digit (arbno digit) "." digit (arbno digit)) number)
     (string ("\"" (arbno (not #\")) "\"") string)))
 
-
-; gramatica del lenguaje
+; ==============================================================================
+; GRAMÁTICA 100% LL(1) - ESTILO RECURSIVO SLLGEN
+; ==============================================================================
 (define grammar-spec
   '((program (expression) a-program)
+    
     ; Literales y tipos primitivos
     (expression (numero) lit-num-exp)
     (expression (string) lit-str-exp)
     (expression ("true") true-exp)
     (expression ("false") false-exp)
     (expression ("null") null-exp)
+    
     ; Variables y mutación (Prefijos estricto sin lookahead ambiguo)
-
     (expression (identifier) var-exp)
     (expression ("set" identifier "=" expression) assign-exp)
     (expression ("var" identifier "=" expression) var-decl-exp)
     (expression ("const" identifier "=" expression) const-decl-exp)
+
     ; Operadores Binarios (Formato prefijo cerrado)
     (expression ("op" "(" expression binary-op expression ")") binary-op-exp)
-
       (binary-op ("+") plus-op)
       (binary-op ("-") minus-op)
       (binary-op ("*") mult-op)
@@ -49,7 +52,6 @@
 
     ; Operadores Unarios
     (expression (unary-op "(" expression ")") unary-op-exp)
-
       (unary-op ("not") not-op)
       (unary-op ("add1") add1-op)
       (unary-op ("sub1") sub1-op)
@@ -64,49 +66,35 @@
       (unary-op ("valores") valores-op)
 
     ; Estructuras de Control Estables
-
-    (expression 
-      ("begin" (separated-list expression ";") "end") begin-exp)
-
-    (expression 
-      ("if" expression "then" expression "else" expression "end") if-exp)
-
-    (expression 
-      ("while" expression "do" expression "done") while-exp)
-
-    (expression 
-      ("for" identifier "in" expression "do" expression "done") for-exp)
+    (expression ("begin" (separated-list expression ";") "end") begin-exp)
+    (expression ("if" expression "then" expression "else" expression "end") if-exp)
+    (expression ("while" expression "do" expression "done") while-exp)
+    (expression ("for" identifier "in" expression "do" expression "done") for-exp)
     
-    ; switch
+    ; REFACTORIZACIÓN SWITCH: Lista recursiva pura en lugar de arbno
     (expression ("switch" expression "{" case-list "default" ":" expression "}") switch-exp)
     (case-list () empty-case-list)
     (case-list (case-block case-list) extended-case-list)
     (case-block ("case" expression ":" expression) a-case-block)
     
-    ; funciones
+    ; REFACTORIZACIÓN FUNCIONES: Cuerpo fuertemente delimitado por llaves de control
     (expression ("func" identifier "(" (separated-list identifier ",") ")" "{" expression "}") func-exp)
     (expression ("call" identifier "(" (separated-list expression ",") ")") app-exp)
 
     ; Colecciones y Diccionarios (No-terminales limpios)
-
-
     (expression ("[" (separated-list expression ",") "]") list-exp)
     (expression ("{" (separated-list dict-item ",") "}") dict-exp)
-
     (dict-item (identifier ":" expression) a-dict-item)
 
     ; Álgebra Simbólica
-
     (expression ("symbol" identifier) symbol-exp)
-
     (expression ("simplificar" "(" expression ")") simplificar-exp)
     
-    ; evaluación 
+    ; REFACTORIZACIÓN EVALUAR: Reutiliza dict-item para sanear el separated-list
     (expression ("evaluar" "(" expression "," eval-bindings ")") evaluar-exp)
     (eval-bindings ("bindings" "{" (separated-list dict-item ",") "}") a-binding-block)
 
     ; Primitivas sobre listas y diccionarios
-
     (expression ("concatenar" "(" expression "," expression ")") concat-exp)
     (expression ("append" "(" expression "," expression ")") append-exp)
     (expression ("ref-list" "(" expression "," expression ")") ref-list-exp)
@@ -116,8 +104,9 @@
 
 (sllgen:make-define-datatypes lexical-spec grammar-spec)
 
-
-; valores de expresion y entorno
+; ==============================================================================
+; VALORES INTERNOS Y AMBIENTES
+; ==============================================================================
 (define-datatype expval expval?
   (num-val (num number?))
   (bool-val (bool boolean?))
@@ -137,8 +126,10 @@
   (empty-env)
   (extend-env (bvars (list-of symbol?)) (brefs (list-of integer?)) (saved-env environment?)) 
   (extend-env-const (bvars (list-of symbol?)) (brefs (list-of integer?)) (saved-env environment?)))
+
 (define-datatype return-value return-value?
-  (normal-val (value expval?))(returned-val (value expval?)))
+  (normal-val (value expval?))
+  (returned-val (value expval?)))
 
 (define (unwrap-result res)
   (cases return-value res
@@ -151,7 +142,8 @@
 (define (initialize-store!) (set! the-store (empty-store)))
 (define (newref val)
   (let ((l (length the-store)))
-    (set! the-store (append the-store (list val)))l))
+    (set! the-store (append the-store (list val)))
+    l))
 (define (deref ref) (list-ref the-store ref))
 (define (setref! ref val)
   (set! the-store
@@ -171,6 +163,7 @@
     (extend-env-const (bvars brefs saved-env)
                       (let ((idx (location search-var bvars)))
                         (if idx (list-ref brefs idx) (apply-env saved-env search-var))))))
+
 (define (location sym lst)
   (let loop ((lst lst) (idx 0))
     (cond
@@ -276,7 +269,9 @@
     (empty-case-list () '())
     (extended-case-list (c-block rest) (cons c-block (case-list->list rest)))))
 
-; evaluación de programas y expresiones
+; ==============================================================================
+; EVALUACIÓN DEL INTÉRPRETE
+; ==============================================================================
 (define (value-of-program pgrm)
   (initialize-store!)
   (cases program pgrm (a-program (exp) (unwrap-result (car (value-of-expression-wrapper exp (empty-env)))))))
@@ -352,7 +347,7 @@
             (let ((val (unwrap-result (car (value-of-expression-wrapper test-exp env)))))
               (if (expval->bool val) (value-of-expression-wrapper then-exp env) (value-of-expression-wrapper else-exp env))))
 
-    ; switch
+    ; PROCESAMIENTO ACTUALIZADO DEL SWITCH RECURSIVO
     (switch-exp (ctrl-exp case-list-ast default-exp)
       (let ((ctrl-val (unwrap-result (car (value-of-expression-wrapper ctrl-exp env))))
             (cases-flat (case-list->list case-list-ast)))
@@ -362,7 +357,7 @@
                 (a-case-block (case-exp body-exp)
                   (if (equal-expval? ctrl-val (unwrap-result (car (value-of-expression-wrapper case-exp env))))
                       (value-of-expression-wrapper body-exp env) (loop (cdr lst)))))))))
-    ;while
+
     (while-exp (test-exp body-exp)
                (let loop ((loop-env env))
                  (let ((test-val (unwrap-result (car (value-of-expression-wrapper test-exp loop-env)))))
@@ -370,7 +365,7 @@
                        (let ((body-res (value-of-expression-wrapper body-exp loop-env)))
                          (cases return-value (car body-res) (returned-val (v) body-res) (normal-val (v) (loop (cdr body-res)))))
                        (cons (normal-val (null-val)) loop-env)))))
-    ;fow
+
     (for-exp (id list-exp body-exp)
              (let ((l-val (unwrap-result (car (value-of-expression-wrapper list-exp env)))))
                (let loop ((lst-refs (expval->list-refs l-val)) (loop-env env))
