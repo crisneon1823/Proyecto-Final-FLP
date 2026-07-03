@@ -2,31 +2,25 @@
 
 (provide (all-defined-out))
 
-;; =============================================================================
-;; 11. ESPECIFICACIÓN LÉXICA
-;; =============================================================================
+;especificacion lexica
 (define lexical-spec
   '((white-sp (whitespace) skip)
     (comment ("#" (arbno (not #\newline))) skip)
 
-    ;; identificadores
-    (identifier (letter (arbno (or letter digit "_" "-" "?"))) symbol)
+    (identifier (letter (arbno (or letter digit "_" "-" "?"))) symbol) ;identificador 
 
-    ;; números enteros y decimales
+    ; creacion de los números enteros y decimales
     (number (digit (arbno digit)) integer)
     (number ("-" digit (arbno digit)) integer)
     (number (digit (arbno digit) "." digit (arbno digit)) float)
     (number ("-" digit (arbno digit) "." digit (arbno digit)) float)
 
-    ;; texto entre comillas
-    (string ("\"" (arbno (not #\")) "\"") string)))
+    (string ("\"" (arbno (not #\")) "\"") string))) ; texto entre comillas
 
-;; =============================================================================
-;; 11. ESPECIFICACIÓN GRAMATICAL (Corregidos espacios pegados)
-;; =============================================================================
+;gramatica 
 (define grammar-spec
   '((program (expression) a-program)
-    ;; valores básicos
+    ; valores básicos
     (expression (number) lit-num-exp)
     (expression (string) lit-str-exp)
     (expression ("true") true-exp)
@@ -34,89 +28,65 @@
     (expression ("null") null-exp)
     (expression (identifier) var-exp)
 
-    ;; variables
-    (expression ("var" (separated-list identifier "=" expression ","))
-                var-decl-exp)
+    ; variables
+    (expression ("var" (separated-list identifier "=" expression ","))var-decl-exp)
 
-    (expression ("const" (separated-list identifier "=" expression ","))
-                const-decl-exp)
+    (expression ("const" (separated-list identifier "=" expression ","))const-decl-exp)
+    (expression (identifier "=" expression)assign-exp)
 
-    (expression (identifier "=" expression)
-                assign-exp)
-
-    ;; bloque de instrucciones
+    ; bloque de instrucciones (del if, switch, ciclos, for, funciones)
     (expression ("begin" (separated-list expression ";") "end")
                 begin-exp)
-
-    ;; if
     (expression ("if" expression "then" expression "else" expression "end")
                 if-exp)
-
-    ;; switch
     (expression ("switch" expression "{" (arbno "case" expression ":" expression) "default" ":" expression "}")
                 switch-exp)
-
-    ;; ciclos
     (expression ("while" expression "do" expression "done")
                 while-exp)
-
     (expression ("for" identifier "in" expression "do" expression "done")
                 for-exp)
-
-    ;; funciones
     (expression ("func" identifier "(" (separated-list identifier ",") ")" "{" (arbno expression) "return" expression "}")
                 func-exp)
 
     (expression (identifier "(" (separated-list expression ",") ")")
                 app-exp)
 
-    ;; listas y diccionarios
-    (expression ("[" (separated-list expression ",") "]")
+    ; listas y diccionarios
+    (expression ("[" (separated-list expression ",") "]") ;
                 list-exp)
-
     (expression ("{" (separated-list identifier ":" expression ",") "}")
                 dict-exp)
 
-    ;; álgebra simbólica
+    ; álgebra simbólica
     (expression ("symbol" identifier) symbol-exp)
-
     (expression ("simplificar" "(" expression ")")
                 simplificar-exp)
-
     (expression ("evaluar" "(" expression "," "{" (separated-list identifier "=" expression ",") "}" ")")
                 evaluar-exp)
 
-    ;; operadores binarios
+    ; operadores binarios
     (expression (expression (or "+" "-" "*" "/" "%" "<" ">" "<=" ">=" "==" "<>" "and" "or") expression)
                 binary-op-exp)
 
-    ;; operadores unarios
+    ; operadores unarios
     (expression ((or "not" "add1" "sub1" "print" "longitud" "cabeza" "cola" "vacio?" "lista?" "diccionario?" "claves" "valores")
                  "(" expression ")") 
                 unary-op-exp)
 
-    ;; funciones para listas y diccionarios
-    (expression ("concatenar" "(" expression "," expression ")")
-                concat-exp)
-
+    ; funciones para listas y diccionarios
+    (expression ("concatenar" "(" expression "," expression ")")concat-exp)
     (expression ("append" "(" expression "," expression ")")
                 append-exp)
-
-    (expression ("ref-list" "(" expression "," expression ")")
-                ref-list-exp)
-
+    (expression ("ref-list" "(" expression "," expression ")")ref-list-exp)
     (expression ("set-list" "(" expression "," expression "," expression ")")
                 set-list-exp)
-
     (expression ("ref-diccionario" "(" expression "," expression ")")
                 ref-dict-exp)
 
     (expression ("set-diccionario" "(" expression "," expression "," expression ")")
                 set-dict-exp)))
 
-;; =============================================================================
-;; DATATYPES: EXPRESSION VAL AND ENVIRONMENT
-;; =============================================================================
+;datatype de las expresiones val y ambiente
 (define-datatype expval expval?
   (num-val (num number?))
   (bool-val (bool boolean?))
@@ -137,25 +107,23 @@
   (empty-env)
   (extend-env (bvars (list-of symbol?))
               (brefs (list-of integer?)) 
+
               (saved-env environment?)) 
-  (extend-env-const (bvars (list-of symbol?)) 
-                    (brefs (list-of integer?)) 
+  (extend-env-const (bvars (list-of symbol?)) (brefs (list-of integer?)) 
                     (saved-env environment?)))
 
-;; =============================================================================
-;; 5. SISTEMA RETURN (DATATYPE)
-;; =============================================================================
+;sistema de retorno de valores )
 (define-datatype return-value return-value?
   (normal-val (value expval?))
-  (returned-val (value expval?)))
+  (returned-val (value expval?))
+  )
 
 (define (unwrap-result res)
   (cases return-value res
     (normal-val (v) v)
     (returned-val (v) v)))
 
-;; =============================================================================
-;; EL STORE (MEMORIA MUTABLE)
+; memoria mutable 
 ;; =============================================================================
 (define the-store '())
 (define (empty-store) '())
@@ -173,9 +141,7 @@
             ((= idx ref) (cons val (cdr store)))
             (else (cons (car store) (loop (cdr store) (+ idx 1))))))))
 
-;; =============================================================================
-;; OPERACIONES DE AMBIENTES
-;; =============================================================================
+;operaciones dle ambiente
 (define (apply-env env search-var)
   (cases environment env
     (empty-env () (eopl:error 'apply-env "Variable no encontrada: ~s" search-var))
@@ -200,12 +166,9 @@
                 (let ((idx (location search-var bvars)))
                   (if idx #f (is-constant? saved-env search-var))))
     (extend-env-const (bvars brefs saved-env)
-                      (let ((idx (location search-var bvars)))
-                        (if idx #t (is-constant? saved-env search-var))))))
+                      (let ((idx (location search-var bvars)))(if idx #t (is-constant? saved-env search-var))))))
 
-;; =============================================================================
-;; 3 & 4. EXTRACTORES DE VALORES (EXPVAL)
-;; =============================================================================
+; extractores de valores (EXPVAL)
 (define (expval->num val)
   (cases expval val (num-val (num) num) (else (eopl:error 'expval->num "No es un número: ~s" val))))
 
@@ -226,9 +189,7 @@
 (define (expval->dict-pairs val)
   (cases expval val (dict-val (dict) dict) (else (eopl:error 'expval->dict-pairs "No es un diccionario: ~s" val))))
 
-;; =============================================================================
-;; 2. COMPROBACIÓN DE IGUALDAD (`equal-expval?`)
-;; =============================================================================
+; comprobacion de las igualdades
 (define (equal-expval? v1 v2)
   (cond
     ((and (cases expval v1 (num-val (n) #t) (else #f)) (cases expval v2 (num-val (n) #t) (else #f)))
@@ -242,16 +203,15 @@
     ((and (cases expval v1 (null-val) #t) (else #f)) (cases expval v2 (null-val) #t) (else #f)) #t)
     (else #f)))
 
-;; =============================================================================
-;; 1 & 8. OPERACIONES BINARIAS Y ÁLGEBRA SIMBÓLICA Básica
+;; opeeraciones binarioas y algebraica
 ;; =============================================================================
 (define (aplicar-operacion-binaria op val1 val2)
   (let ((is-sym1? (cases expval val1 (symbol-val (s) #t) (sym-expr-val (o l r) #t) (else #f)))
         (is-sym2? (cases expval val2 (symbol-val (s) #t) (sym-expr-val (o l r) #t) (else #f))))
     (if (or is-sym1? is-sym2?)
-        ;; 8. Si alguno es simbólico, se construye un árbol algebraico estructurado (sym-expr-val)
+
         (sym-expr-val op val1 val2)
-        ;; De lo contrario, cálculo numérico/lógico estándar con validaciones de errores (15)
+
         (cond
           ((string=? op "+")  (num-val (+ (expval->num val1) (expval->num val2))))
           ((string=? op "-")  (num-val (- (expval->num val1) (expval->num val2))))
@@ -269,11 +229,10 @@
           ((string=? op "<>") (bool-val (not (equal-expval? val1 val2))))
           ((string=? op "and") (bool-val (and (expval->bool val1) (expval->bool val2))))
           ((string=? op "or")  (bool-val (or (expval->bool val1) (expval->bool val2))))
+
           (else (eopl:error 'aplicar-operacion-binaria "Operador desconocido"))))))
 
-;; =============================================================================
-;; 6. MOTOR DE SIMPLIFICACIÓN RECURSIVA (`simplificar-val`)
-;; =============================================================================
+;motor de simplificación recursiva
 (define (simplificar-val val)
   (cases expval val
     (sym-expr-val (op left right)
@@ -294,11 +253,10 @@
                               ((and (string=? op "*") (equal? n2 1)) l-sim)
                               ((and (string=? op "/") (equal? n2 1)) l-sim)
                               (else (sym-expr-val op l-sim r-sim))))))))
-    (else val)))
+    (else val))
+  )
 
-;; =============================================================================
-;; 7. SUSTITUCIÓN SIMBÓLICA (`evaluar-simbolica`)
-;; =============================================================================
+;sustitucion simbolica
 (define (evaluar-simbolica val targets keys-vals)
   (cases expval val
     (symbol-val (sym)
@@ -308,14 +266,10 @@
                     ((eqv? sym (car t)) (car kv))
                     (else (loop (cdr t) (cdr kv))))))
     (sym-expr-val (op left right)
-                  (let ((l-ev (evaluar-simbolica left targets keys-vals))
-                        (r-ev (evaluar-simbolica right targets keys-vals)))
+                  (let ((l-ev (evaluar-simbolica left targets keys-vals))(r-ev (evaluar-simbolica right targets keys-vals)))
                     (simplificar-val (sym-expr-val op l-ev r-ev))))
     (else val)))
 
-;; =============================================================================
-;; 9. PRETTY PRINTER PARA LA FUNCIÓN PRINT
-;; =============================================================================
 (define (pretty-print-expval val)
   (cases expval val
     (num-val (num) (display num))
@@ -346,23 +300,20 @@
                         (loop (cdr d))))))
     (proc-val (v b r e) (display "<function>"))))
 
-;; =============================================================================
-;; 12 & 13. EVALUACIÓN CENTRALIZADA Y ÚNICA DE PROGRAMAS Y EXPRESIONES
-;; =============================================================================
+;evaluacion centralizada y unica de programas y expresiones
 (define (value-of-program pgrm)
   (initialize-store!)
   (cases program pgrm
     (a-program (exp)
                (let ((result-env-pair (value-of-expression-wrapper exp (empty-env))))
                  (unwrap-result (car result-env-pair))))))
-
 (define (value-of-expression-wrapper exp env)
   (let ((res-env-pair (value-of-expression exp env)))
     (if (return-value? (car res-env-pair))
         res-env-pair
         (cons (normal-val (car res-env-pair)) (cdr res-env-pair)))))
 
-;; value-of-expression retorna un par Racket (cons valor-de-retorno ambiente-resultante)
+; value-of-expression retorna un par 
 (define (value-of-expression exp env)
   (cases expression exp
     (lit-num-exp (num) (cons (num-val num) env))
@@ -371,26 +322,22 @@
     (false-exp () (cons (bool-val #f) env))
     (null-exp () (cons (null-val) env))
     (var-exp (id) (cons (deref (apply-env env id)) env))
-    
     (var-decl-exp (ids exps)
                   (let* ((vals (map (lambda (e) (unwrap-result (car (value-of-expression-wrapper e env)))) exps))
                          (refs (map newref vals))
                          (new-env (extend-env ids refs env)))
                     (cons (null-val) new-env)))
-
     (const-decl-exp (ids exps)
                     (let* ((vals (map (lambda (e) (unwrap-result (car (value-of-expression-wrapper e env)))) exps))
                            (refs (map newref vals))
                            (new-env (extend-env-const ids refs env)))
                       (cons (null-val) new-env)))
-
     (assign-exp (id rhs-exp)
                 (if (is-constant? env id)
                     (eopl:error 'assign-exp "Error Semántico: Constante inmutable: ~s" id)
                     (let ((val (unwrap-result (car (value-of-expression-wrapper rhs-exp env)))))
                       (setref! (apply-env env id) val)
                       (cons val env))))
-
     (begin-exp (exps)
                (let loop ((lst exps) (current-res (normal-val (null-val))) (current-env env))
                  (if (null? lst)
@@ -400,13 +347,11 @@
                        (normal-val (old-v)
                                    (let ((res-pair (value-of-expression-wrapper (car lst) current-env)))
                                      (loop (cdr lst) (car res-pair) (cdr res-pair))))))))
-
     (if-exp (test-exp then-exp else-exp)
             (let ((val (unwrap-result (car (value-of-expression-wrapper test-exp env)))))
               (if (expval->bool val)
                   (value-of-expression-wrapper then-exp env)
                   (value-of-expression-wrapper else-exp env))))
-
     (switch-exp (ctrl-exp case-exps body-exps default-exp)
                 (let ((ctrl-val (unwrap-result (car (value-of-expression-wrapper ctrl-exp env)))))
                   (let loop ((c-exps case-exps) (b-exps body-exps))
@@ -415,7 +360,6 @@
                       ((equal-expval? ctrl-val (unwrap-result (car (value-of-expression-wrapper (car c-exps) env))))
                        (value-of-expression-wrapper (car b-exps) env))
                       (else (loop (cdr c-exps) (cdr b-exps)))))))
-
     (while-exp (test-exp body-exp)
                (let loop ((loop-env env))
                  (let ((test-val (unwrap-result (car (value-of-expression-wrapper test-exp loop-env)))))
@@ -426,7 +370,7 @@
                            (normal-val (v) (loop (cdr body-res)))))
                        (cons (normal-val (null-val)) loop-env)))))
 
-    (for-exp (id list-exp body-exp)
+  (for-exp (id list-exp body-exp)
              (let ((l-val (unwrap-result (car (value-of-expression-wrapper list-exp env)))))
                (let ((refs (expval->list-refs l-val)))
                  (let loop ((lst-refs refs) (loop-env env))
